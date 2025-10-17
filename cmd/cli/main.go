@@ -41,6 +41,7 @@ func main() {
 	flag.Parse()
 
 	store := todos.NewStore(todosFile)
+	//todos.StartStore(todosFile)
 
 	if *desc != "" {
 		slog.Info("CLI calling store.Create()")
