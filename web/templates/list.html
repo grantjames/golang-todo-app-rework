@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><title>Todo List</title></head>
+<body>
+<h1>Todo List</h1>
+<ul>
+{{ range $id, $todo := . }}
+  <li>{{ $id }} {{$todo.Description}} [{{$todo.Status}}]</li>
+{{else}}
+  <li><em>No todos</em></li>
+{{end}}
+</ul>
+</body>
+</html>

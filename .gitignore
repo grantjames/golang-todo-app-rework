@@ -1,0 +1,5 @@
+*.log
+api
+cli
+.DS_Store
+todos.json
