@@ -38,6 +38,8 @@ The other implementation is in `todos_no_struct.go` (commented out). This one do
 
 I'm unsure of the "best" approach here, but thought I'd try out both.
 
+The biggest change, however, from my previous solution, is that the store itself implements the actor pattern, rather than having an Actor wrapping round a store. This way, the actor can just export methods like `Create()` and `Get()` which send messages to it's own "queue"/channel, rather than in my previous solution where the actor just had one generic method to recieve "messages". This worked well but required lots of "transport" structs to hold a request and a response type for every type of interaction with the store.
+
 ## Tests
 
 There is a parallel test in `todos_test.go` that runs concurrent creates and then deletions and then asserts that the number of todos in the store matches what is expected.
