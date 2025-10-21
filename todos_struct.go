@@ -15,31 +15,37 @@ package todos
 // 	Status      string `json:"status"`
 // }
 
-// var filePath = ""
-// var todos = make(map[string]Todo)
-// var cmds = make(chan func())
+// type Store struct {
+// 	filePath string
+// 	todos    map[string]Todo
+// 	cmds     chan func()
+// }
 
-// func StartStore(file string) {
+// func NewStore(filepath string) *Store {
 // 	// This needs looking in to - assumes the cwd is cmd/cli or cmd/api
-// 	filePath = fmt.Sprintf("../../%s", file)
-// 	todos = loadTodosFromFile(filePath)
-// 	slog.Info("Starting todo store", "file_path", filePath)
+// 	filepath = fmt.Sprintf("../../%s", filepath)
+// 	s := &Store{
+// 		filePath: filepath,
+// 		cmds:     make(chan func()),
+// 		todos:    loadTodosFromFile(filepath),
+// 	}
 // 	go func() {
-// 		for f := range cmds {
+// 		for f := range s.cmds {
 // 			f()
 // 		}
 // 	}()
+// 	return s
 // }
 
-// func Get(id string) (Todo, error) {
+// func (s *Store) Get(id string) (Todo, error) {
 // 	slog.Info("Retrieving todo from store", "todo_id", id)
 
 // 	r := make(chan struct {
 // 		t  Todo
 // 		ok bool
 // 	}, 1)
-// 	cmds <- func() {
-// 		if t, ok := todos[id]; ok {
+// 	s.cmds <- func() {
+// 		if t, ok := s.todos[id]; ok {
 // 			r <- struct {
 // 				t  Todo
 // 				ok bool
@@ -58,40 +64,40 @@ package todos
 // 	return v.t, nil
 // }
 
-// func List() map[string]Todo {
+// func (s *Store) List() map[string]Todo {
 // 	slog.Info("Retrieving all todos from store")
 
 // 	r := make(chan map[string]Todo, 1)
-// 	cmds <- func() {
-// 		r <- todos
+// 	s.cmds <- func() {
+// 		r <- s.todos
 // 	}
 // 	return <-r
 // }
 
-// func Create(desc string) string {
+// func (s *Store) Create(desc string) string {
 // 	slog.Info("Creating new todo in store", "description", desc)
 // 	r := make(chan string, 1)
-// 	cmds <- func() {
+// 	s.cmds <- func() {
 // 		id := uuid.NewString()
-// 		todos[id] = Todo{Description: desc, Status: "not started"}
-// 		saveTodosToFile(filePath, todos)
+// 		s.todos[id] = Todo{Description: desc, Status: "not started"}
+// 		saveTodosToFile(s.filePath, s.todos)
 // 		r <- id
 // 	}
 // 	return <-r
 // }
 
-// func Update(id string, desc string, status string) bool {
+// func (s *Store) Update(id string, desc string, status string) bool {
 // 	r := make(chan bool, 1)
-// 	cmds <- func() {
-// 		if _, ok := todos[id]; ok {
+// 	s.cmds <- func() {
+// 		if _, ok := s.todos[id]; ok {
 // 			if desc == "" {
-// 				desc = todos[id].Description
+// 				desc = s.todos[id].Description
 // 			}
 // 			if status == "" {
-// 				status = todos[id].Status
+// 				status = s.todos[id].Status
 // 			}
-// 			todos[id] = Todo{Description: desc, Status: status}
-// 			saveTodosToFile(filePath, todos)
+// 			s.todos[id] = Todo{Description: desc, Status: status}
+// 			saveTodosToFile(s.filePath, s.todos)
 // 			r <- true
 // 		} else {
 // 			r <- false
@@ -100,12 +106,12 @@ package todos
 // 	return <-r
 // }
 
-// func Delete(id string) bool {
+// func (s *Store) Delete(id string) bool {
 // 	r := make(chan bool, 1)
-// 	cmds <- func() {
-// 		if _, ok := todos[id]; ok {
-// 			delete(todos, id)
-// 			saveTodosToFile(filePath, todos)
+// 	s.cmds <- func() {
+// 		if _, ok := s.todos[id]; ok {
+// 			delete(s.todos, id)
+// 			saveTodosToFile(s.filePath, s.todos)
 // 			r <- true
 // 		} else {
 // 			r <- false

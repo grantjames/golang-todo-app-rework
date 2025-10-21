@@ -15,37 +15,31 @@ type Todo struct {
 	Status      string `json:"status"`
 }
 
-type Store struct {
-	filePath string
-	todos    map[string]Todo
-	cmds     chan func()
-}
+var filePath = ""
+var todos = make(map[string]Todo)
+var cmds = make(chan func())
 
-func NewStore(filepath string) *Store {
+func StartStore(file string) {
 	// This needs looking in to - assumes the cwd is cmd/cli or cmd/api
-	filepath = fmt.Sprintf("../../%s", filepath)
-	s := &Store{
-		filePath: filepath,
-		cmds:     make(chan func()),
-		todos:    loadTodosFromFile(filepath),
-	}
+	filePath = fmt.Sprintf("../../%s", file)
+	todos = loadTodosFromFile(filePath)
+	slog.Info("Starting todo store", "file_path", filePath)
 	go func() {
-		for f := range s.cmds {
+		for f := range cmds {
 			f()
 		}
 	}()
-	return s
 }
 
-func (s *Store) Get(id string) (Todo, error) {
+func Get(id string) (Todo, error) {
 	slog.Info("Retrieving todo from store", "todo_id", id)
 
 	r := make(chan struct {
 		t  Todo
 		ok bool
 	}, 1)
-	s.cmds <- func() {
-		if t, ok := s.todos[id]; ok {
+	cmds <- func() {
+		if t, ok := todos[id]; ok {
 			r <- struct {
 				t  Todo
 				ok bool
@@ -64,40 +58,40 @@ func (s *Store) Get(id string) (Todo, error) {
 	return v.t, nil
 }
 
-func (s *Store) List() map[string]Todo {
+func List() map[string]Todo {
 	slog.Info("Retrieving all todos from store")
 
 	r := make(chan map[string]Todo, 1)
-	s.cmds <- func() {
-		r <- s.todos
+	cmds <- func() {
+		r <- todos
 	}
 	return <-r
 }
 
-func (s *Store) Create(desc string) string {
+func Create(desc string) string {
 	slog.Info("Creating new todo in store", "description", desc)
 	r := make(chan string, 1)
-	s.cmds <- func() {
+	cmds <- func() {
 		id := uuid.NewString()
-		s.todos[id] = Todo{Description: desc, Status: "not started"}
-		saveTodosToFile(s.filePath, s.todos)
+		todos[id] = Todo{Description: desc, Status: "not started"}
+		saveTodosToFile(filePath, todos)
 		r <- id
 	}
 	return <-r
 }
 
-func (s *Store) Update(id string, desc string, status string) bool {
+func Update(id string, desc string, status string) bool {
 	r := make(chan bool, 1)
-	s.cmds <- func() {
-		if _, ok := s.todos[id]; ok {
+	cmds <- func() {
+		if _, ok := todos[id]; ok {
 			if desc == "" {
-				desc = s.todos[id].Description
+				desc = todos[id].Description
 			}
 			if status == "" {
-				status = s.todos[id].Status
+				status = todos[id].Status
 			}
-			s.todos[id] = Todo{Description: desc, Status: status}
-			saveTodosToFile(s.filePath, s.todos)
+			todos[id] = Todo{Description: desc, Status: status}
+			saveTodosToFile(filePath, todos)
 			r <- true
 		} else {
 			r <- false
@@ -106,12 +100,12 @@ func (s *Store) Update(id string, desc string, status string) bool {
 	return <-r
 }
 
-func (s *Store) Delete(id string) bool {
+func Delete(id string) bool {
 	r := make(chan bool, 1)
-	s.cmds <- func() {
-		if _, ok := s.todos[id]; ok {
-			delete(s.todos, id)
-			saveTodosToFile(s.filePath, s.todos)
+	cmds <- func() {
+		if _, ok := todos[id]; ok {
+			delete(todos, id)
+			saveTodosToFile(filePath, todos)
 			r <- true
 		} else {
 			r <- false

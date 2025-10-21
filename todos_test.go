@@ -14,7 +14,8 @@ func TestStoreConcurrency(t *testing.T) {
 	defer os.Remove(testFile)
 	f.Close()
 
-	store := NewStore(testFile)
+	//store := NewStore(testFile)
+	StartStore(testFile)
 	const N = 100
 	ids := make([]string, N)
 
@@ -23,12 +24,12 @@ func TestStoreConcurrency(t *testing.T) {
 			i := i
 			t.Run("Testing parallel add", func(t *testing.T) {
 				t.Parallel()
-				ids[i] = store.Create(fmt.Sprintf("task-%d", i))
+				ids[i] = Create(fmt.Sprintf("task-%d", i))
 			})
 		}
 	})
 
-	if got := len(store.List()); got != N {
+	if got := len(List()); got != N {
 		t.Fatalf("want %d todos, got %d", N, got)
 	}
 
@@ -37,14 +38,14 @@ func TestStoreConcurrency(t *testing.T) {
 			id := ids[i]
 			t.Run(fmt.Sprintf("delete-%s", id), func(t *testing.T) {
 				t.Parallel()
-				if !store.Delete(id) {
+				if !Delete(id) {
 					t.Fatalf("failed to delete %s", id)
 				}
 			})
 		}
 	})
 
-	if got := len(store.List()); got != N-50 {
+	if got := len(List()); got != N-50 {
 		t.Fatalf("final size: want %d, got %d", N-200, got)
 	}
 }

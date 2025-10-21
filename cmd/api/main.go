@@ -15,8 +15,6 @@ import (
 
 type traceIDKey struct{}
 
-var store = todos.NewStore("todos.json")
-
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/create/", handleCreate)
@@ -28,10 +26,12 @@ func main() {
 
 	tmpl := template.Must(template.ParseFiles("../../web/templates/list.html"))
 	mux.HandleFunc("/list", func(w http.ResponseWriter, r *http.Request) {
-		items := store.List()
+		items := todos.List()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		tmpl.Execute(w, items)
 	})
+
+	todos.StartStore("todos.json")
 
 	handler := traceIDMiddleware(mux)
 	slog.Info("API server listening on :5000")
@@ -64,7 +64,7 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	idx := store.Create(t.Description)
+	idx := todos.Create(t.Description)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(idx))
 }
@@ -74,7 +74,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	logger.Info("/get")
 
 	id := strings.TrimPrefix(r.URL.Path, "/get/")
-	todo, err := store.Get(id)
+	todo, err := todos.Get(id)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -96,7 +96,7 @@ func handleUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ok := store.Update(req.Id, req.Desc, req.Status)
+	ok := todos.Update(req.Id, req.Desc, req.Status)
 	if !ok {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -109,7 +109,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 	logger.Info("/delete")
 
 	id := strings.TrimPrefix(r.URL.Path, "/delete/")
-	ok := store.Delete(id)
+	ok := todos.Delete(id)
 	if !ok {
 		http.Error(w, "not found", http.StatusNotFound)
 		return

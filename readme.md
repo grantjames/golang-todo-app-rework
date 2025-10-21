@@ -32,9 +32,9 @@ This store uses the actor pattern to ensure safe concurrent read and write to th
 
 ### Todo store
 
-There are two implementations of the todo store. The one used by the CLI and API encapsulates the functionality inside a `Store` struct, by having the struct own its own data and having instance methods to interact with it.
+There are two implementations of the todo store. The one used by the CLI and API encapsulates the functionality inside a file and just uses unexported variables to ensure ownership of data.
 
-The other implementation is in `todos_no_struct.go` (commented out). This one doesn't use a struct and just uses unexported variables to ensure ownership of data.
+The other implementation is in `todos_struct.go` (commented out). This works similarly to the "no struct" version, but has a struct own its own data and by instance methods on it for consumers to interact with it.
 
 I'm unsure of the "best" approach here, but thought I'd try out both.
 

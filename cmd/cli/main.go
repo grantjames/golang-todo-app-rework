@@ -40,17 +40,16 @@ func main() {
 	deleteId := flag.String("delete", "", "ID of todo to delete")
 	flag.Parse()
 
-	store := todos.NewStore(todosFile)
-	//todos.StartStore(todosFile)
+	todos.StartStore(todosFile)
 
 	if *desc != "" {
 		slog.Info("CLI calling store.Create()")
-		store.Create(*desc)
+		todos.Create(*desc)
 	}
 
 	if *updateId != "" && (*updateDesc != "" || *updateStatus != "") {
 		slog.Info("CLI calling store.Update()")
-		ok := store.Update(*updateId, *updateDesc, *updateStatus)
+		ok := todos.Update(*updateId, *updateDesc, *updateStatus)
 		if ok {
 			fmt.Printf("Updated todo #%s\n", *updateId)
 		}
@@ -58,7 +57,7 @@ func main() {
 
 	if *deleteId != "" {
 		slog.Info("CLI calling store.Delete()")
-		ok := store.Delete(*deleteId)
+		ok := todos.Delete(*deleteId)
 		if ok {
 			fmt.Printf("Deleted todo #%s\n", *deleteId)
 		}
@@ -66,7 +65,7 @@ func main() {
 
 	fmt.Println("Todo list:")
 	slog.Info("CLI calling store.List()")
-	todos := store.List()
+	todos := todos.List()
 	for i, t := range todos {
 		fmt.Printf("%s: %s [%s]\n", i, t.Description, t.Status)
 	}
