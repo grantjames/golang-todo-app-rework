@@ -1,6 +1,7 @@
 package todos
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"grantjames.github.io/m/v2/logger"
 )
 
 type Todo struct {
@@ -15,9 +17,24 @@ type Todo struct {
 	Status      string `json:"status"`
 }
 
+type Request struct {
+	Name     string
+	Id       string
+	Todo     Todo
+	Response chan Response
+}
+
+type Response struct {
+	Id    string
+	Todo  Todo
+	Todos map[string]Todo
+	Ok    bool
+}
+
 var filePath = ""
 var todos = make(map[string]Todo)
-var cmds = make(chan func())
+
+var cmds = make(chan Request)
 
 func StartStore(file string) {
 	// This needs looking in to - assumes the cwd is cmd/cli or cmd/api
@@ -25,98 +42,136 @@ func StartStore(file string) {
 	todos = loadTodosFromFile(filePath)
 	slog.Info("Starting todo store", "file_path", filePath)
 	go func() {
-		for f := range cmds {
-			f()
+		for cmd := range cmds {
+			switch cmd.Name {
+			case "get":
+				t, ok := todos[cmd.Id]
+				cmd.Response <- Response{
+					Ok:   ok,
+					Todo: t,
+				}
+			case "list":
+				cmd.Response <- Response{
+					Ok:    true,
+					Todos: todos,
+				}
+			case "create":
+				id := uuid.NewString()
+				todos[id] = Todo{Description: cmd.Todo.Description, Status: "not started"}
+				saveTodosToFile(filePath, todos)
+			case "update":
+				if _, ok := todos[cmd.Id]; ok {
+					if cmd.Todo.Description == "" {
+						cmd.Todo.Description = todos[cmd.Id].Description
+					}
+					if cmd.Todo.Status == "" {
+						cmd.Todo.Status = todos[cmd.Id].Status
+					}
+					todos[cmd.Id] = Todo{Description: cmd.Todo.Description, Status: cmd.Todo.Status}
+					saveTodosToFile(filePath, todos)
+					cmd.Response <- Response{
+						Ok: true,
+					}
+				} else {
+					cmd.Response <- Response{
+						Ok: false,
+					}
+				}
+			case "delete":
+				if _, ok := todos[cmd.Id]; ok {
+					delete(todos, cmd.Id)
+					saveTodosToFile(filePath, todos)
+					cmd.Response <- Response{
+						Ok: true,
+					}
+				} else {
+					cmd.Response <- Response{
+						Ok: false,
+					}
+				}
+			}
+
 		}
 	}()
 }
 
-func Get(id string) (Todo, error) {
-	slog.Info("Retrieving todo from store", "todo_id", id)
+func Get(ctx context.Context, id string) (Todo, error) {
+	logger.ContextLogger(ctx).Info("Retrieving todo from store", "todo_id", id)
 
-	r := make(chan struct {
-		t  Todo
-		ok bool
-	}, 1)
-	cmds <- func() {
-		if t, ok := todos[id]; ok {
-			r <- struct {
-				t  Todo
-				ok bool
-			}{t, true}
-		} else {
-			r <- struct {
-				t  Todo
-				ok bool
-			}{Todo{}, false}
-		}
+	r := make(chan Response, 1)
+	cmds <- Request{
+		Name:     "get",
+		Id:       id,
+		Response: r,
 	}
-	v := <-r
-	if !v.ok {
+	resp := <-r
+	if !resp.Ok {
 		return Todo{}, errors.New("Todo was not found")
 	}
-	return v.t, nil
+	return resp.Todo, nil
+
 }
 
-func List() map[string]Todo {
-	slog.Info("Retrieving all todos from store")
-
-	r := make(chan map[string]Todo, 1)
-	cmds <- func() {
-		r <- todos
+func List(ctx context.Context) map[string]Todo {
+	slog.InfoContext(ctx, "Retrieving all todos from store")
+	r := make(chan Response, 1)
+	cmds <- Request{
+		Name:     "list",
+		Response: r,
 	}
-	return <-r
+	resp := <-r
+	if resp.Ok {
+		return resp.Todos
+	}
+
+	return map[string]Todo{}
 }
 
-func Create(desc string) string {
-	slog.Info("Creating new todo in store", "description", desc)
-	r := make(chan string, 1)
-	cmds <- func() {
-		id := uuid.NewString()
-		todos[id] = Todo{Description: desc, Status: "not started"}
-		saveTodosToFile(filePath, todos)
-		r <- id
+func Create(ctx context.Context, desc string) string {
+	slog.InfoContext(ctx, "Creating new todo in store", "description", desc)
+	r := make(chan Response, 1)
+	cmds <- Request{
+		Name: "create",
+		Todo: Todo{
+			Description: desc,
+			Status:      "not started",
+		},
+		Response: r,
 	}
-	return <-r
+	resp := <-r
+	return resp.Id
 }
 
-func Update(id string, desc string, status string) bool {
-	r := make(chan bool, 1)
-	cmds <- func() {
-		if _, ok := todos[id]; ok {
-			if desc == "" {
-				desc = todos[id].Description
-			}
-			if status == "" {
-				status = todos[id].Status
-			}
-			todos[id] = Todo{Description: desc, Status: status}
-			saveTodosToFile(filePath, todos)
-			r <- true
-		} else {
-			r <- false
-		}
+func Update(ctx context.Context, id string, desc string, status string) bool {
+	slog.InfoContext(ctx, "Updating todo with ID", "todo_id", id)
+	r := make(chan Response, 1)
+	cmds <- Request{
+		Name: "update",
+		Id:   id,
+		Todo: Todo{
+			Description: desc,
+			Status:      status,
+		},
+		Response: r,
 	}
-	return <-r
+	resp := <-r
+	return resp.Ok
 }
 
-func Delete(id string) bool {
-	r := make(chan bool, 1)
-	cmds <- func() {
-		if _, ok := todos[id]; ok {
-			delete(todos, id)
-			saveTodosToFile(filePath, todos)
-			r <- true
-		} else {
-			r <- false
-		}
+func Delete(ctx context.Context, id string) bool {
+	slog.InfoContext(ctx, "Deleting todo", "todo_id", id)
+	r := make(chan Response, 1)
+	cmds <- Request{
+		Name:     "delete",
+		Id:       id,
+		Response: r,
 	}
-	return <-r
+	resp := <-r
+	return resp.Ok
 }
 
 func loadTodosFromFile(file string) map[string]Todo {
 	var todos *map[string]Todo
-	// This needs looking in to - assumes the cwd is cmd/cli or cmd/api
 	f, err := os.Open(file)
 	if err != nil {
 		slog.Error("Could not load json file, will create a new one on save", "error", err.Error())

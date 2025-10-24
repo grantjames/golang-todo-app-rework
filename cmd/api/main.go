@@ -11,9 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	todos "grantjames.github.io/m/v2"
+	"grantjames.github.io/m/v2/logger"
 )
-
-type traceIDKey struct{}
 
 func main() {
 	mux := http.NewServeMux()
@@ -26,7 +25,7 @@ func main() {
 
 	tmpl := template.Must(template.ParseFiles("../../web/templates/list.html"))
 	mux.HandleFunc("/list", func(w http.ResponseWriter, r *http.Request) {
-		items := todos.List()
+		items := todos.List(r.Context())
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		tmpl.Execute(w, items)
 	})
@@ -38,23 +37,16 @@ func main() {
 	log.Fatal(http.ListenAndServe(":5000", handler))
 }
 
-// contextLogger returns a slog.Logger with trace_id from context attached
-func contextLogger(ctx context.Context) *slog.Logger {
-	traceID, _ := ctx.Value(traceIDKey{}).(string)
-	return slog.With("trace_id", traceID)
-}
-
 func traceIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		traceID := uuid.New().String()
-		ctx := context.WithValue(r.Context(), traceIDKey{}, traceID)
+		ctx := context.WithValue(r.Context(), logger.TraceIDKey{}, traceID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func handleCreate(w http.ResponseWriter, r *http.Request) {
-	logger := contextLogger(r.Context())
-	logger.Info("/create")
+	logger.ContextLogger(r.Context()).Info("/create")
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -64,17 +56,16 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	idx := todos.Create(t.Description)
+	idx := todos.Create(r.Context(), t.Description)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(idx))
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
-	logger := contextLogger(r.Context())
-	logger.Info("/get")
+	logger.ContextLogger(r.Context()).Info("/get")
 
 	id := strings.TrimPrefix(r.URL.Path, "/get/")
-	todo, err := todos.Get(id)
+	todo, err := todos.Get(r.Context(), id)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -84,8 +75,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUpdate(w http.ResponseWriter, r *http.Request) {
-	logger := contextLogger(r.Context())
-	logger.Info("/update")
+	logger.ContextLogger(r.Context()).Info("/update")
 
 	var req struct {
 		Id     string `json:"id"`
@@ -96,7 +86,7 @@ func handleUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ok := todos.Update(req.Id, req.Desc, req.Status)
+	ok := todos.Update(r.Context(), req.Id, req.Desc, req.Status)
 	if !ok {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -105,11 +95,10 @@ func handleUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDelete(w http.ResponseWriter, r *http.Request) {
-	logger := contextLogger(r.Context())
-	logger.Info("/delete")
+	logger.ContextLogger(r.Context()).Info("/delete")
 
 	id := strings.TrimPrefix(r.URL.Path, "/delete/")
-	ok := todos.Delete(id)
+	ok := todos.Delete(r.Context(), id)
 	if !ok {
 		http.Error(w, "not found", http.StatusNotFound)
 		return

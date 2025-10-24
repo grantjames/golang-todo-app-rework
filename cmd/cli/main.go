@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -10,12 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	todos "grantjames.github.io/m/v2"
+	"grantjames.github.io/m/v2/logger"
 )
 
 var todosFile = "todos.json"
-
-// This is not needed if we are just attaching the trace_id to the default logger
-//type traceIdKey struct{}
 
 func main() {
 	// Log to file so the console output is easier to read
@@ -25,14 +24,6 @@ func main() {
 	}
 	defer f.Close()
 
-	// Generate a TraceID for this run using uuid
-	traceID := uuid.New().String()
-	// Does this need to be added to the context since we can just attach it to default logger?
-	// Would need to pass context around only if the CLI was a REPL that sent multiple requests to the store
-	//ctx := context.WithValue(context.Background(), traceIdKey{}, traceID)
-	logger := slog.New(slog.NewTextHandler(f, nil))
-	slog.SetDefault(logger.With("trace_id", traceID))
-
 	desc := flag.String("add", "", "Description of todo item to add")
 	updateId := flag.String("id", "", "ID of todo to update")
 	updateDesc := flag.String("desc", "", "New description for update")
@@ -40,16 +31,17 @@ func main() {
 	deleteId := flag.String("delete", "", "ID of todo to delete")
 	flag.Parse()
 
+	ctx := context.WithValue(context.Background(), logger.TraceIDKey{}, uuid.New().String())
 	todos.StartStore(todosFile)
 
 	if *desc != "" {
 		slog.Info("CLI calling store.Create()")
-		todos.Create(*desc)
+		todos.Create(ctx, *desc)
 	}
 
 	if *updateId != "" && (*updateDesc != "" || *updateStatus != "") {
 		slog.Info("CLI calling store.Update()")
-		ok := todos.Update(*updateId, *updateDesc, *updateStatus)
+		ok := todos.Update(ctx, *updateId, *updateDesc, *updateStatus)
 		if ok {
 			fmt.Printf("Updated todo #%s\n", *updateId)
 		}
@@ -57,7 +49,7 @@ func main() {
 
 	if *deleteId != "" {
 		slog.Info("CLI calling store.Delete()")
-		ok := todos.Delete(*deleteId)
+		ok := todos.Delete(ctx, *deleteId)
 		if ok {
 			fmt.Printf("Deleted todo #%s\n", *deleteId)
 		}
@@ -65,7 +57,7 @@ func main() {
 
 	fmt.Println("Todo list:")
 	slog.Info("CLI calling store.List()")
-	todos := todos.List()
+	todos := todos.List(ctx)
 	for i, t := range todos {
 		fmt.Printf("%s: %s [%s]\n", i, t.Description, t.Status)
 	}
