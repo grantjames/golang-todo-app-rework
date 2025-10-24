@@ -25,10 +25,8 @@ type Request struct {
 }
 
 type Response struct {
-	Id    string
-	Todo  Todo
-	Todos map[string]Todo
-	Ok    bool
+	Data any
+	Ok   bool
 }
 
 var filePath = ""
@@ -48,17 +46,21 @@ func StartStore(file string) {
 				t, ok := todos[cmd.Id]
 				cmd.Response <- Response{
 					Ok:   ok,
-					Todo: t,
+					Data: t,
 				}
 			case "list":
 				cmd.Response <- Response{
-					Ok:    true,
-					Todos: todos,
+					Ok:   true,
+					Data: todos,
 				}
 			case "create":
 				id := uuid.NewString()
 				todos[id] = Todo{Description: cmd.Todo.Description, Status: "not started"}
 				saveTodosToFile(filePath, todos)
+				cmd.Response <- Response{
+					Ok:   true,
+					Data: id,
+				}
 			case "update":
 				if _, ok := todos[cmd.Id]; ok {
 					if cmd.Todo.Description == "" {
@@ -108,7 +110,7 @@ func Get(ctx context.Context, id string) (Todo, error) {
 	if !resp.Ok {
 		return Todo{}, errors.New("Todo was not found")
 	}
-	return resp.Todo, nil
+	return resp.Data.(Todo), nil
 
 }
 
@@ -121,7 +123,7 @@ func List(ctx context.Context) map[string]Todo {
 	}
 	resp := <-r
 	if resp.Ok {
-		return resp.Todos
+		return resp.Data.(map[string]Todo)
 	}
 
 	return map[string]Todo{}
@@ -139,7 +141,7 @@ func Create(ctx context.Context, desc string) string {
 		Response: r,
 	}
 	resp := <-r
-	return resp.Id
+	return resp.Data.(string)
 }
 
 func Update(ctx context.Context, id string, desc string, status string) bool {
