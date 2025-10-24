@@ -115,7 +115,7 @@ func Get(ctx context.Context, id string) (Todo, error) {
 }
 
 func List(ctx context.Context) map[string]Todo {
-	slog.InfoContext(ctx, "Retrieving all todos from store")
+	logger.ContextLogger(ctx).Info("Retrieving all todos from store")
 	r := make(chan Response, 1)
 	cmds <- Request{
 		Name:     "list",
@@ -130,7 +130,7 @@ func List(ctx context.Context) map[string]Todo {
 }
 
 func Create(ctx context.Context, desc string) string {
-	slog.InfoContext(ctx, "Creating new todo in store", "description", desc)
+	logger.ContextLogger(ctx).Info("Creating new todo in store", "description", desc)
 	r := make(chan Response, 1)
 	cmds <- Request{
 		Name: "create",
@@ -145,7 +145,7 @@ func Create(ctx context.Context, desc string) string {
 }
 
 func Update(ctx context.Context, id string, desc string, status string) bool {
-	slog.InfoContext(ctx, "Updating todo with ID", "todo_id", id)
+	logger.ContextLogger(ctx).Info("Updating todo with ID", "todo_id", id)
 	r := make(chan Response, 1)
 	cmds <- Request{
 		Name: "update",
@@ -161,7 +161,7 @@ func Update(ctx context.Context, id string, desc string, status string) bool {
 }
 
 func Delete(ctx context.Context, id string) bool {
-	slog.InfoContext(ctx, "Deleting todo", "todo_id", id)
+	logger.ContextLogger(ctx).Info("Deleting todo", "todo_id", id)
 	r := make(chan Response, 1)
 	cmds <- Request{
 		Name:     "delete",
